@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache libc6-compat
+
+WORKDIR /app
+
+COPY package.json package-lock.json* ./
+RUN npm ci --omit=dev
+
+COPY . .
+RUN npx prisma generate
+RUN npx tsc --project tsconfig.worker.json || true
+
+ENV NODE_ENV=production
+
+RUN npm install -g pm2
+
+COPY docker/pm2.worker.config.js ./pm2.config.js
+
+CMD ["pm2-runtime", "start", "pm2.config.js"]

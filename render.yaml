@@ -1,0 +1,74 @@
+# Render Blueprint for KavachAI (free-tier web deployment)
+# ---------------------------------------------------------
+# This deploys the Next.js WEB app on Render's free tier.
+# Database = Neon (free), Redis = Upstash (free) — created separately,
+# their connection strings pasted into the env vars below.
+#
+# The BullMQ background worker is NOT included here because Render's free
+# tier does not run background workers, and the worker has nothing to process
+# until real integrations (WhatsApp/Gmail/etc.) are connected with API keys.
+# Add it later as a "Background Worker" service with startCommand `npm run worker`.
+#
+# To deploy: push this repo to GitHub, then in Render: New > Blueprint > pick the repo.
+
+services:
+  - type: web
+    name: kavachai-web
+    runtime: node
+    plan: free
+    region: singapore            # closest free region to India
+    branch: main
+    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run build
+    startCommand: npx next start -p $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      # --- Secrets / connection strings: set these in the Render dashboard ---
+      # (marked sync:false so Render prompts you instead of committing them)
+      - key: DATABASE_URL          # Neon Postgres connection string (with ?sslmode=require)
+        sync: false
+      - key: REDIS_URL             # Upstash Redis connection string (rediss://...)
+        sync: false
+      - key: NEXTAUTH_SECRET       # generate: openssl rand -base64 48
+        sync: false
+      - key: NEXTAUTH_URL          # your Render URL, e.g. https://kavachai-web.onrender.com
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL   # same as NEXTAUTH_URL
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY  # generate: openssl rand -hex 32  (must be 64 hex chars)
+        sync: false
+      - key: META_WEBHOOK_VERIFY_TOKEN  # any random string
+        sync: false
+      - key: ANTHROPIC_API_KEY     # placeholder for now (any non-empty string); add real key later
+        sync: false
+
+  # ---------------------------------------------------------------------------
+  # BACKGROUND WORKER (BullMQ) — processes incoming messages through the AI
+  # pipeline. NOTE: Render background workers are NOT on the free tier (they
+  # need a paid instance). Uncomment this block when you go live with real
+  # integrations + a real ANTHROPIC_API_KEY. It reuses the same Neon + Upstash.
+  # ---------------------------------------------------------------------------
+  # - type: worker
+  #   name: kavachai-worker
+  #   runtime: node
+  #   plan: starter            # smallest paid plan; free tier has no workers
+  #   region: singapore
+  #   branch: main
+  #   buildCommand: npm install && npx prisma generate
+  #   startCommand: npm run worker
+  #   envVars:
+  #     - key: NODE_ENV
+  #       value: production
+  #     - key: NEXT_TELEMETRY_DISABLED
+  #       value: "1"
+  #     - key: DATABASE_URL
+  #       sync: false          # same Neon URL as the web service
+  #     - key: REDIS_URL
+  #       sync: false          # same Upstash URL as the web service
+  #     - key: TOKEN_ENCRYPTION_KEY
+  #       sync: false          # same value as the web service
+  #     - key: ANTHROPIC_API_KEY
+  #       sync: false          # REAL key required here for AI processing

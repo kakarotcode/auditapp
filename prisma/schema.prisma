@@ -1,0 +1,382 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organisation {
+  id               String     @id @default(cuid())
+  name             String
+  gstin            String?
+  vertical         Vertical
+  size             OrgSize
+  city             String?
+  state            String?
+  activeFrameworks Framework[]
+  plan             Plan       @default(STARTER)
+  planStatus       PlanStatus @default(TRIAL)
+  trialEndsAt      DateTime?
+  subscriptionId   String?
+  complianceScore  Int        @default(100)
+  onboardingDone   Boolean    @default(false)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  users         User[]
+  sources       DataSource[]
+  incidents     Incident[]
+  reports       Report[]
+  staff         StaffMember[]
+  ruleOverrides RuleOverride[]
+  auditEvents   AuditEvent[]
+  invoices      Invoice[]
+  scoreHistory  ScoreHistory[]
+
+  @@index([plan])
+}
+
+enum Vertical {
+  CA_FIRM
+  HEALTHCARE
+  FINANCIAL
+  LEGAL
+  EDTECH
+  HR_TECH
+  GENERAL
+}
+
+enum OrgSize {
+  MICRO
+  SMALL
+  MEDIUM
+}
+
+enum Plan {
+  STARTER
+  PROFESSIONAL
+  GUARDIAN
+}
+
+enum PlanStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
+enum Framework {
+  DPDP
+  IT_ACT
+  RBI
+  SEBI
+  IRDAI
+  NMC
+  BAR_COUNCIL
+  LABOUR_LAW
+  POCSO
+}
+
+model User {
+  id             String    @id @default(cuid())
+  orgId          String
+  email          String    @unique
+  name           String
+  passwordHash   String?
+  role           UserRole  @default(STAFF)
+  whatsappNumber String?
+  avatarUrl      String?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  org               Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  accounts          Account[]
+  sessions          Session[]
+  resolvedIncidents Incident[]   @relation("ResolvedBy")
+  assignedIncidents Incident[]   @relation("AssignedTo")
+
+  @@index([orgId, role])
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  COMPLIANCE_OFFICER
+  AUDITOR
+  STAFF
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model DataSource {
+  id                    String       @id @default(cuid())
+  orgId                 String
+  type                  SourceType
+  status                SourceStatus @default(PENDING)
+  displayName           String
+  encryptedToken        String?      @db.Text
+  encryptedRefreshToken String?      @db.Text
+  tokenExpiresAt        DateTime?
+  webhookId             String?
+  metadata              Json?
+  lastScannedAt         DateTime?
+  errorMessage          String?
+  messagesScanned       Int          @default(0)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  org       Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  incidents Incident[]
+
+  @@index([orgId, type])
+}
+
+enum SourceType {
+  WHATSAPP
+  GMAIL
+  OUTLOOK
+  GOOGLE_DRIVE
+  ONEDRIVE
+}
+
+enum SourceStatus {
+  PENDING
+  ACTIVE
+  ERROR
+  REVOKED
+  EXPIRED
+}
+
+model Incident {
+  id               String         @id @default(cuid())
+  orgId            String
+  sourceId         String
+  ruleId           String
+  ruleCode         String
+  ruleName         String
+  framework        Framework
+  severity         Severity
+  status           IncidentStatus @default(OPEN)
+  channel          SourceType
+  entityTypes      EntityType[]
+  entityCount      Int            @default(1)
+  contextSummary   String
+  staffMemberId    String?
+  staffIdentifier  String?
+  resolvedById     String?
+  assignedToId     String?
+  resolvedAt       DateTime?
+  resolution       String?
+  resolutionNote   String?
+  remediationSteps Json?
+  riskExplanation  String?
+  encryptedEventRef String?
+  occurredAt       DateTime
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  org         Organisation          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  source      DataSource            @relation(fields: [sourceId], references: [id])
+  resolvedBy  User?                 @relation("ResolvedBy", fields: [resolvedById], references: [id])
+  assignedTo  User?                 @relation("AssignedTo", fields: [assignedToId], references: [id])
+  staffMember StaffMember?          @relation(fields: [staffMemberId], references: [id])
+  timeline    IncidentTimelineEvent[]
+
+  @@index([orgId, status])
+  @@index([orgId, severity])
+  @@index([orgId, occurredAt])
+  @@index([orgId, framework])
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  FALSE_POSITIVE
+  ESCALATED
+}
+
+enum EntityType {
+  PERSON_NAME
+  MOBILE_NUMBER
+  EMAIL_ADDRESS
+  AADHAAR_NUMBER
+  PAN_NUMBER
+  GSTIN
+  BANK_ACCOUNT
+  FINANCIAL_DATA
+  HEALTH_CONDITION
+  MEDICAL_RECORD
+  LOCATION_DATA
+  DATE_OF_BIRTH
+  PASSPORT_NUMBER
+  VOTER_ID
+  SENSITIVE_CATEGORY
+}
+
+model IncidentTimelineEvent {
+  id          String   @id @default(cuid())
+  incidentId  String
+  type        String
+  description String
+  userId      String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+}
+
+model StaffMember {
+  id               String    @id @default(cuid())
+  orgId            String
+  name             String
+  role             String?
+  department       String?
+  hashedIdentifier String    @unique
+  totalIncidents   Int       @default(0)
+  lastIncidentAt   DateTime?
+  createdAt        DateTime  @default(now())
+
+  org       Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  incidents Incident[]
+
+  @@index([orgId])
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  orgId       String
+  type        ReportType
+  title       String
+  period      String
+  periodStart DateTime
+  periodEnd   DateTime
+  status      ReportStatus @default(GENERATING)
+  s3Key       String?
+  downloadUrl String?
+  metadata    Json?
+  generatedAt DateTime?
+  createdAt   DateTime     @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, type])
+}
+
+enum ReportType {
+  AUDIT
+  WEEKLY
+  MONTHLY
+  INCIDENT_SUMMARY
+}
+
+enum ReportStatus {
+  GENERATING
+  READY
+  FAILED
+}
+
+model RuleOverride {
+  id        String    @id @default(cuid())
+  orgId     String
+  ruleCode  String
+  action    String
+  reason    String
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, ruleCode])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  orgId      String
+  userId     String?
+  action     String
+  resource   String?
+  resourceId String?
+  ipAddress  String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+}
+
+model ScoreHistory {
+  id         String   @id @default(cuid())
+  orgId      String
+  score      Int
+  delta      Int      @default(0)
+  reason     String?
+  recordedAt DateTime @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, recordedAt])
+}
+
+model Invoice {
+  id                String    @id @default(cuid())
+  orgId             String
+  razorpayInvoiceId String?
+  amount            Int
+  gstAmount         Int
+  totalAmount       Int
+  status            String
+  invoiceNumber     String    @unique
+  pdfS3Key          String?
+  billingPeriod     String
+  paidAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  org Organisation @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
