@@ -40,3 +40,4 @@ prisma/generated/
 # editor
 .vscode/settings.json
 .idea/
+dump.rdb
