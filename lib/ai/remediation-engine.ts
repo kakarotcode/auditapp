@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import Redis from 'ioredis'
 import { REMEDIATION_SYSTEM_PROMPT } from './prompts'
+import { extractJson } from './json'
 import type { EntityType, Vertical } from '@/lib/compliance/types'
 import { logger } from '@/lib/logger'
 
@@ -88,7 +89,7 @@ async function generateRemediationSteps(
   const payload = { ruleCodes, entityTypes, vertical }
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
     max_tokens: 800,
     system: REMEDIATION_SYSTEM_PROMPT,
     messages: [
@@ -106,7 +107,7 @@ async function generateRemediationSteps(
 
   let steps: string[]
   try {
-    steps = JSON.parse(contentBlock.text) as string[]
+    steps = extractJson<string[]>(contentBlock.text)
     if (!Array.isArray(steps)) throw new Error('Response is not an array')
     // Filter out any non-string items
     steps = steps.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)

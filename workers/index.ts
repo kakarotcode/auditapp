@@ -1,3 +1,6 @@
+// MUST be the first import — loads .env into process.env before the AI client
+// modules (which read process.env at import time) are evaluated.
+import './load-env'
 import { Worker, type Job } from 'bullmq'
 import {
   redisConnection,

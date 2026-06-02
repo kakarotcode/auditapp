@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { CONTEXT_CLASSIFIER_SYSTEM_PROMPT } from './prompts'
+import { extractJson } from './json'
 import type { PiiDetectionResult, ClassificationResult } from '@/lib/compliance/types'
 
 // ---------------------------------------------------------------------------
@@ -54,7 +55,7 @@ export async function classifyContext(input: ClassificationInput): Promise<Class
   }
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
     max_tokens: 600,
     system: CONTEXT_CLASSIFIER_SYSTEM_PROMPT,
     messages: [
@@ -72,7 +73,7 @@ export async function classifyContext(input: ClassificationInput): Promise<Class
 
   let parsed: ClaudeClassificationPayload
   try {
-    parsed = JSON.parse(contentBlock.text) as ClaudeClassificationPayload
+    parsed = extractJson<ClaudeClassificationPayload>(contentBlock.text)
   } catch {
     // Graceful fallback: if we can't parse, apply a conservative heuristic
     const isSensitive =

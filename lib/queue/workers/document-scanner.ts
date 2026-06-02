@@ -31,7 +31,7 @@ async function getRiskExplanation(
   const payload = { violatedRuleCodes, entityTypes, severity, vertical, recipientType: 'UNKNOWN', hasConsent: false }
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
     max_tokens: 400,
     system: RISK_EXPLANATION_SYSTEM_PROMPT,
     messages: [

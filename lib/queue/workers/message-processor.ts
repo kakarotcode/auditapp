@@ -7,6 +7,7 @@ import { classifyContext } from '@/lib/ai/context-classifier'
 import { scoreRisk } from '@/lib/ai/risk-scorer'
 import { getRemediationSteps } from '@/lib/ai/remediation-engine'
 import { RISK_EXPLANATION_SYSTEM_PROMPT } from '@/lib/ai/prompts'
+import { extractJson } from '@/lib/ai/json'
 import { updateOrgHealthScore } from '@/lib/compliance/health-score'
 import { db } from '@/lib/db'
 import { alertSenderQueue } from '@/lib/queue'
@@ -31,7 +32,7 @@ async function getRiskExplanation(
   const payload = { violatedRuleCodes, entityTypes, severity, vertical, recipientType, hasConsent }
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
     max_tokens: 400,
     system: RISK_EXPLANATION_SYSTEM_PROMPT,
     messages: [
@@ -46,7 +47,7 @@ async function getRiskExplanation(
   if (block.type !== 'text') return 'Risk explanation unavailable.'
 
   try {
-    const parsed = JSON.parse(block.text) as RiskExplanationPayload
+    const parsed = extractJson<RiskExplanationPayload>(block.text)
     return `${parsed.explanation}\n\nPenalty range: ${parsed.penaltyRange}`
   } catch {
     return block.text
