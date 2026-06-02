@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { PII_DETECTION_SYSTEM_PROMPT } from './prompts'
+import { extractJson } from './json'
 import type { PiiDetectionResult, DetectedEntity, DataCategory } from '@/lib/compliance/types'
 
 // ---------------------------------------------------------------------------
@@ -116,7 +117,7 @@ export async function detectPii(text: string): Promise<PiiDetectionResult> {
 
   // Call Claude for deep semantic analysis
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-20250514',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
     max_tokens: 500,
     system: PII_DETECTION_SYSTEM_PROMPT,
     messages: [
@@ -134,7 +135,7 @@ export async function detectPii(text: string): Promise<PiiDetectionResult> {
 
   let parsed: ClaudeDetectionPayload
   try {
-    parsed = JSON.parse(contentBlock.text) as ClaudeDetectionPayload
+    parsed = extractJson<ClaudeDetectionPayload>(contentBlock.text)
   } catch {
     // Graceful fallback: trust local regex result
     parsed = {
