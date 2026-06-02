@@ -12,6 +12,7 @@ import {
   Shield,
   Users,
   BookOpen,
+  ScanLine,
   X,
 } from 'lucide-react'
 import { cn, getInitials } from '@/lib/utils'
@@ -25,6 +26,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: 'Dashboard',        href: '/dashboard', icon: LayoutDashboard },
+  { label: 'Scan a Message',   href: '/scan',       icon: ScanLine        },
   { label: 'Incidents',        href: '/incidents',  icon: AlertTriangle   },
   { label: 'Data Sources',     href: '/sources',    icon: Database        },
   { label: 'Reports',          href: '/reports',    icon: FileText        },
