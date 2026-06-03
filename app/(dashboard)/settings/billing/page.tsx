@@ -1,5 +1,6 @@
 'use client'
 
+import Script from 'next/script'
 import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -67,6 +68,7 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <PageHeader title="Billing & Subscription" description="Manage your KavachAI plan" />
 
       {/* Current plan */}
