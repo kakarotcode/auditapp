@@ -7,6 +7,9 @@ const PUBLIC_API_PREFIXES = [
   '/api/auth',
   '/api/webhooks',
   '/api/health',
+  // Razorpay calls this server-to-server (no session); it verifies its own
+  // HMAC signature, so it must be reachable without auth.
+  '/api/billing/webhook',
 ]
 
 // Static asset paths to skip entirely
