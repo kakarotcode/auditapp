@@ -35,6 +35,23 @@ export default function ScanPage() {
   const [external, setExternal] = useState(true)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ScanResult | null>(null)
+  const [gmailLoading, setGmailLoading] = useState(false)
+  const [gmailResult, setGmailResult] = useState<{ scanned: number; violations: number; incidentsCreated: number; results: Array<{ subject: string; violation: boolean; severity: string | null; incidentId: string | null }> } | null>(null)
+
+  async function scanGmail() {
+    setGmailLoading(true); setGmailResult(null)
+    try {
+      const res = await fetch('/api/gmail/scan', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { toast.error(data.error ?? 'Gmail scan failed'); return }
+      setGmailResult(data)
+      toast.success(`Scanned ${data.scanned} emails — ${data.incidentsCreated} incident(s) created`)
+    } catch {
+      toast.error('Could not scan Gmail')
+    } finally {
+      setGmailLoading(false)
+    }
+  }
 
   async function runScan() {
     if (!content.trim()) { toast.error('Please enter a message to scan'); return }
@@ -113,6 +130,41 @@ export default function ScanPage() {
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Gmail inbox scan */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Or scan your Gmail inbox</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-gray-500">
+            Pulls your most recent emails and runs the AI on each. Requires signing in
+            with Google (granting Gmail read access).
+          </p>
+          <Button variant="outline" onClick={scanGmail} disabled={gmailLoading}>
+            {gmailLoading ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Scanning inbox…</> : 'Scan my Gmail inbox'}
+          </Button>
+          {gmailResult && (
+            <div className="rounded-lg border border-gray-100 p-3 text-sm">
+              <p className="font-medium text-gray-800 mb-2">
+                Scanned {gmailResult.scanned} emails · {gmailResult.violations} violation(s) · {gmailResult.incidentsCreated} incident(s) created
+              </p>
+              <ul className="space-y-1">
+                {gmailResult.results.map((r, i) => (
+                  <li key={i} className="flex items-center gap-2 text-xs">
+                    {r.violation
+                      ? <Badge className={sevColor(r.severity ?? undefined)}>{r.severity}</Badge>
+                      : <Badge className="bg-green-100 text-green-700">clean</Badge>}
+                    {r.incidentId
+                      ? <Link href={`/incidents/${r.incidentId}`} className="text-[#1E6FD9] hover:underline truncate">{r.subject}</Link>
+                      : <span className="text-gray-600 truncate">{r.subject}</span>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </CardContent>
       </Card>
 
