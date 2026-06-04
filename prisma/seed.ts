@@ -974,6 +974,18 @@ async function seed(): Promise<void> {
 
   console.log('  Created audit trail events.')
 
+  // Store the ACTUAL calculated health score (from open incidents) so the
+  // dashboard, reports and compliance page all show the same number — and so
+  // resolving incidents correctly raises it. Consistent + honest, vs a
+  // hardcoded value that mismatches the real incident load.
+  const { calculateHealthScore } = await import('../lib/compliance/health-score')
+  const calculatedScore = await calculateHealthScore(org.id)
+  await db.organisation.update({
+    where: { id: org.id },
+    data: { complianceScore: calculatedScore },
+  })
+  console.log(`  Compliance score set to calculated value: ${calculatedScore}/100`)
+
   console.log('\n✅  Seed completed successfully!')
   console.log('\n  Demo login credentials:')
   console.log('  ┌────────────────────────────────────┬──────────────────────┬────────────────────┐')

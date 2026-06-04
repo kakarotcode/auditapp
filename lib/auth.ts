@@ -104,16 +104,11 @@ export const authConfig: NextAuthConfig = {
       clientId: process.env.GOOGLE_CLIENT_ID ?? '',
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
       allowDangerousEmailAccountLinking: true,
-      // Also request read-only Gmail access + a refresh token, so "Scan my
-      // Gmail" can read recent emails. access_type=offline + prompt=consent
-      // ensure Google returns a refresh_token.
-      authorization: {
-        params: {
-          scope: 'openid email profile https://www.googleapis.com/auth/gmail.readonly',
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
+      // Login uses only basic scopes (openid/email/profile). Gmail's
+      // gmail.readonly is a Google "restricted" scope that blocks any
+      // non-test-user until Google verifies the app — putting it here breaks
+      // login for all customers. Gmail scanning will request it separately,
+      // once the app is verified for that scope.
     }),
   ],
 
