@@ -9,8 +9,10 @@ export const dynamic = 'force-dynamic'
 
 const generateReportSchema = z.object({
   type: z.enum(['AUDIT', 'WEEKLY', 'MONTHLY', 'INCIDENT_SUMMARY']),
-  periodStart: z.string().datetime(),
-  periodEnd: z.string().datetime(),
+  // Accept date-only ("2026-05-01") from <input type="date"> as well as full
+  // ISO datetimes — coerce both to Date.
+  periodStart: z.coerce.date(),
+  periodEnd: z.coerce.date(),
   title: z.string().min(1).max(200).optional(),
 })
 
@@ -104,20 +106,12 @@ export async function POST(req: NextRequest) {
         period,
         periodStart,
         periodEnd,
-        status: 'GENERATING',
+        // Reports are rendered on demand (live summary + browser print-to-PDF),
+        // so they're ready immediately — no worker/Puppeteer/S3 dependency.
+        status: 'READY',
+        generatedAt: new Date(),
       },
     })
-
-    // Enqueue report generation job
-    try {
-      const { reportGeneratorQueue } = await import('@/lib/queue')
-      await reportGeneratorQueue.add('generate-report', {
-        reportId: report.id,
-        orgId: session.user.orgId,
-      })
-    } catch (queueError) {
-      console.warn('[reports POST] Queue not available, report generation will be deferred:', queueError)
-    }
 
     return NextResponse.json(report, { status: 201 })
   } catch (error) {

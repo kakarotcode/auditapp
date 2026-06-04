@@ -3,128 +3,171 @@
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowLeft, Download, FileText } from 'lucide-react'
+import { ArrowLeft, Download, Shield } from 'lucide-react'
 import Link from 'next/link'
-import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
+
+interface ReportData {
+  report: { id: string; title: string; type: string; period: string; periodStart: string; periodEnd: string; status: string; generatedAt: string | null }
+  org: { name: string; gstin: string | null; vertical: string; complianceScore: number; activeFrameworks: string[] } | null
+  summary: {
+    total: number
+    bySeverity: Record<string, number>
+    byStatus: Record<string, number>
+    byFramework: Record<string, number>
+    resolved: number
+    open: number
+    complianceScore: number | null
+  }
+  incidents: Array<{ ruleName: string; ruleCode: string; severity: string; status: string; framework: string; channel: string; occurredAt: string; entityTypes: string[] }>
+}
+
+const SEV_COLOR: Record<string, string> = {
+  CRITICAL: '#DC2626', HIGH: '#EA580C', MEDIUM: '#D97706', LOW: '#2563EB',
+}
 
 export default function ReportViewerPage() {
   const { id } = useParams<{ id: string }>()
-
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<ReportData>({
     queryKey: ['report', id],
-    queryFn: () => fetch(`/api/reports/${id}`).then(r => r.json()),
+    queryFn: () => fetch(`/api/reports/${id}`).then((r) => r.json()),
     enabled: !!id,
-    refetchInterval: (query) => query.state.data?.report?.status === 'GENERATING' ? 5000 : false,
   })
 
-  async function download() {
-    try {
-      const res = await fetch(`/api/reports/${id}/download`)
-      const json = await res.json() as { downloadUrl?: string }
-      if (json.downloadUrl) {
-        window.open(json.downloadUrl, '_blank')
-      } else {
-        toast.error('Download URL not available')
-      }
-    } catch {
-      toast.error('Failed to get download link')
-    }
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-40" />
+        <Skeleton className="h-[600px] w-full rounded-xl" />
+      </div>
+    )
+  }
+  if (!data?.report) {
+    return <div className="py-12 text-center text-gray-500">Report not found</div>
   }
 
-  const report = data?.report
-
-  const statusColor: Record<string, string> = {
-    READY: 'bg-green-100 text-green-700',
-    GENERATING: 'bg-yellow-100 text-yellow-700',
-    FAILED: 'bg-red-100 text-red-700',
-  }
+  const { report, org, summary, incidents } = data
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      {/* Screen-only toolbar */}
+      <div className="no-print flex items-center justify-between">
         <Button asChild variant="ghost" size="sm">
           <Link href="/reports"><ArrowLeft className="mr-2 h-4 w-4" />Back to Reports</Link>
         </Button>
+        <Button size="sm" onClick={() => window.print()}>
+          <Download className="mr-2 h-4 w-4" />Save as PDF
+        </Button>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-4">
-          <Skeleton className="h-32 w-full rounded-xl" />
-          <Skeleton className="h-[600px] w-full rounded-xl" />
+      {/* Printable report */}
+      <div className="print-area mx-auto max-w-4xl rounded-xl border border-gray-200 bg-white p-8 sm:p-10 text-gray-900">
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-gray-200 pb-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#0F2B5B]">
+              <Shield className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-lg font-bold text-[#0F2B5B]">KavachAI</p>
+              <p className="text-xs text-gray-500">DPDP Compliance Evidence Report</p>
+            </div>
+          </div>
+          <div className="text-right text-xs text-gray-500">
+            <p className="font-semibold text-gray-800">{report.title}</p>
+            <p>{report.period}</p>
+            <p>Generated {report.generatedAt ? formatDate(report.generatedAt) : '—'}</p>
+          </div>
         </div>
-      ) : !report ? (
-        <Card><CardContent className="py-12 text-center text-gray-500">Report not found</CardContent></Card>
-      ) : (
-        <>
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-lg">{report.title}</CardTitle>
-                  <p className="text-sm text-gray-500 mt-1">{report.period}</p>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {formatDate(report.periodStart)} — {formatDate(report.periodEnd)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge className={statusColor[report.status] ?? ''}>
-                    {report.status === 'GENERATING' ? (
-                      <span className="flex items-center gap-1">
-                        <span className="h-2 w-2 rounded-full bg-yellow-500 animate-pulse" />
-                        Generating…
-                      </span>
-                    ) : report.status}
-                  </Badge>
-                  {report.status === 'READY' && (
-                    <Button size="sm" onClick={download}>
-                      <Download className="mr-2 h-4 w-4" />
-                      Download PDF
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-          </Card>
 
-          {report.status === 'GENERATING' && (
-            <Card>
-              <CardContent className="py-16 text-center">
-                <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[#0F2B5B] border-t-transparent mb-4" />
-                <p className="text-gray-600 font-medium">Generating your report…</p>
-                <p className="text-sm text-gray-400 mt-1">This may take a minute. The page will refresh automatically.</p>
-              </CardContent>
-            </Card>
-          )}
+        {/* Org */}
+        <div className="mt-5 grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-gray-400">Organisation</p>
+            <p className="font-semibold">{org?.name ?? '—'}</p>
+            {org?.gstin && <p className="text-xs text-gray-500">GSTIN: {org.gstin}</p>}
+          </div>
+          <div className="text-right">
+            <p className="text-xs uppercase tracking-wide text-gray-400">Monitoring period</p>
+            <p className="font-medium">{formatDate(report.periodStart)} — {formatDate(report.periodEnd)}</p>
+            <p className="text-xs text-gray-500">Frameworks: {(org?.activeFrameworks ?? []).join(', ') || '—'}</p>
+          </div>
+        </div>
 
-          {report.status === 'READY' && report.downloadUrl && (
-            <Card>
-              <CardContent className="p-0">
-                <div className="flex flex-col items-center justify-center py-16 gap-4">
-                  <FileText className="h-16 w-16 text-[#0F2B5B] opacity-30" />
-                  <p className="text-gray-600">PDF report is ready</p>
-                  <Button onClick={download}>
-                    <Download className="mr-2 h-4 w-4" />
-                    Download PDF Report
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+        {/* Executive summary */}
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {[
+            { label: 'Compliance Score', value: `${summary.complianceScore ?? '—'}/100` },
+            { label: 'Total Incidents', value: summary.total },
+            { label: 'Open', value: summary.open },
+            { label: 'Resolved', value: summary.resolved },
+          ].map((m) => (
+            <div key={m.label} className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-center">
+              <p className="text-2xl font-bold text-[#0F2B5B]">{m.value}</p>
+              <p className="text-[11px] text-gray-500">{m.label}</p>
+            </div>
+          ))}
+        </div>
 
-          {report.status === 'FAILED' && (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="py-8 text-center">
-                <p className="text-red-600 font-medium">Report generation failed</p>
-                <p className="text-sm text-red-400 mt-1">Please try generating the report again</p>
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
+        {/* Severity breakdown */}
+        <h3 className="mt-7 mb-2 text-sm font-bold text-[#0F2B5B]">Incidents by severity</h3>
+        <div className="flex flex-wrap gap-2">
+          {(['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] as const).map((s) => (
+            <span key={s} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: `${SEV_COLOR[s]}1a`, color: SEV_COLOR[s] }}>
+              <span className="h-2 w-2 rounded-full" style={{ background: SEV_COLOR[s] }} />
+              {s}: {summary.bySeverity[s] ?? 0}
+            </span>
+          ))}
+        </div>
+
+        {/* Framework coverage */}
+        {Object.keys(summary.byFramework).length > 0 && (
+          <>
+            <h3 className="mt-6 mb-2 text-sm font-bold text-[#0F2B5B]">By framework</h3>
+            <div className="flex flex-wrap gap-2 text-xs">
+              {Object.entries(summary.byFramework).map(([f, n]) => (
+                <span key={f} className="rounded-full bg-blue-50 px-3 py-1 font-medium text-blue-700">{f}: {n}</span>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Incident log */}
+        <h3 className="mt-7 mb-2 text-sm font-bold text-[#0F2B5B]">Incident log ({incidents.length})</h3>
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="border-b border-gray-200 text-left text-gray-500">
+              <th className="py-2 pr-2">Date</th>
+              <th className="py-2 pr-2">Rule</th>
+              <th className="py-2 pr-2">Severity</th>
+              <th className="py-2 pr-2">Framework</th>
+              <th className="py-2 pr-2">Channel</th>
+              <th className="py-2">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {incidents.length === 0 ? (
+              <tr><td colSpan={6} className="py-4 text-center text-gray-400">No incidents in this period — clean record.</td></tr>
+            ) : incidents.map((i, idx) => (
+              <tr key={idx} className="border-b border-gray-50">
+                <td className="py-1.5 pr-2 whitespace-nowrap text-gray-500">{formatDate(i.occurredAt)}</td>
+                <td className="py-1.5 pr-2">{i.ruleName} <span className="text-gray-400">({i.ruleCode})</span></td>
+                <td className="py-1.5 pr-2 font-semibold" style={{ color: SEV_COLOR[i.severity] }}>{i.severity}</td>
+                <td className="py-1.5 pr-2">{i.framework}</td>
+                <td className="py-1.5 pr-2">{i.channel}</td>
+                <td className="py-1.5">{i.status}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* Footer */}
+        <div className="mt-8 border-t border-gray-200 pt-4 text-center text-[10px] text-gray-400">
+          <p>Generated by KavachAI — kavachai.in · Report ID: {report.id}</p>
+          <p>This report is generated from monitored data as evidence of DPDP Act compliance posture. No raw personal data is stored — only classifications.</p>
+        </div>
+      </div>
     </div>
   )
 }
