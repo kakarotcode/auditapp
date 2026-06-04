@@ -3,6 +3,7 @@ import { detectPii } from '@/lib/ai/pii-detector'
 import { classifyContext } from '@/lib/ai/context-classifier'
 import { scoreRisk } from '@/lib/ai/risk-scorer'
 import { getRemediationSteps } from '@/lib/ai/remediation-engine'
+import { getRuleByCode } from '@/lib/compliance/rulebook-engine'
 import type { SourceType, Vertical } from '@prisma/client'
 
 const FRAMEWORK_MAP: Record<string, string> = {
@@ -82,6 +83,7 @@ export async function runComplianceScan(input: RunScanInput): Promise<RunScanOut
   ).catch(() => [] as string[])
 
   const primaryRuleCode = classification.applicableRules[0] ?? 'DPDP-S7B-001'
+  const ruleName = getRuleByCode(primaryRuleCode)?.name ?? primaryRuleCode
   const framework = (FRAMEWORK_MAP[primaryRuleCode.split('-')[0]] ?? 'DPDP') as
     'DPDP' | 'IT_ACT' | 'NMC' | 'RBI' | 'SEBI' | 'IRDAI' | 'BAR_COUNCIL' | 'LABOUR_LAW' | 'POCSO'
 
@@ -111,7 +113,7 @@ export async function runComplianceScan(input: RunScanInput): Promise<RunScanOut
       sourceId: source.id,
       ruleId: primaryRuleCode,
       ruleCode: primaryRuleCode,
-      ruleName: primaryRuleCode,
+      ruleName,
       framework,
       severity: riskResult.severity,
       status: 'OPEN',
