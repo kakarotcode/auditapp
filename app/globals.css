@@ -201,3 +201,22 @@
 
   .ring-3 { --tw-ring-shadow: 0 0 0 3px var(--tw-ring-color); box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow); }
 }
+
+/* Print-to-PDF: when printing a report, show only the .print-area and hide
+   the dashboard chrome (sidebar, topbar, toolbar). Lets "Save as PDF" produce
+   a clean report with no Puppeteer/server dependency. */
+@media print {
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area {
+    position: absolute !important;
+    left: 0; top: 0; width: 100% !important;
+    max-width: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 16px !important;
+  }
+  .no-print { display: none !important; }
+  @page { margin: 12mm; }
+}
